@@ -25,19 +25,19 @@ def generate_launch_description():
 
     # Configure the USB camera node
     node_usbcam = Node(
-        name       = 'usb_cam1', 
+        name       = 'usb_cam2', 
         package    = 'usb_cam',
         executable = 'usb_cam_node_exe',
-        namespace  = 'usb_cam1',
+        namespace  = 'usb_cam2',
         output     = 'screen',
         parameters = [{'camera_name':  'logitech'},
-                      {'video_device': '/dev/video2'},
+                      {'video_device': '/dev/video0'},
                       {'pixel_format': 'yuyv2rgb'},
                       {'image_width':  640},
                       {'image_height': 480},
                       {'framerate':           15.0},
                       {'brightness':          130},
-                      {'contrast':            145},
+                      {'contrast':            135},
                       {'saturation':          128},
                       {'sharpness':           -1},
                       {'gain':                -1},
@@ -48,13 +48,13 @@ def generate_launch_description():
                       {'autofocus':           True},
                       {'focus':               -1}])
 
-    # Configure the ball detector node
-    node_balldetector = Node(
-        name       = 'balldetector', 
+    # Configure the backboard detector node
+    node_backboarddetector = Node(
+        name       = 'backboarddetector', 
         package    = 'detector',
-        executable = 'balldetector',
+        executable = 'backboarddetector',
         output     = 'screen',
-        remappings = [('/image_raw', '/usb_cam1/image_raw')])
+        remappings = [('/image_raw', '/usb_cam2/image_raw')])
 
 
     ######################################################################
@@ -65,5 +65,5 @@ def generate_launch_description():
 
         # Start the nodes.
         node_usbcam,
-        node_balldetector,
+        node_backboarddetector,
     ])

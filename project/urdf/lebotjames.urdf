@@ -1,0 +1,204 @@
+<?xml version="1.0"?>
+
+<robot name="threedofexample">
+
+  <!-- ******************************************************** -->
+  <!-- ******************* Kinematic Chain ******************** -->
+  <!-- ******************************************************** -->
+  <!-- Note the 'origin' tag in the joints defines the shift and
+       reorientation, i.e. the transform.  For moving joints, this
+       happens before the continuous joint rotates around 'axis'. -->
+
+  <!-- World can't take a visual element (at least in Gazebo). -->
+  <link name="world"/>
+
+  <joint name="placement" type="fixed">
+    <parent link="world"/>
+    <child  link="baseplate"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>			<!-- WHERE IS THE BASE -->
+  </joint>
+
+  <!-- BASE PLATE: Shift across the base plate to the base motor. --> 
+  <link name="baseplate">
+      <visual>
+      <origin xyz="0.0762 0.0 0.0" rpy="1.5708 0 3.1416"/>
+      <geometry>
+        <mesh filename="package://project/meshes/Lebaseplate.STL"
+	      scale="0.001 0.001 0.001"/> 
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="baseplate" type="fixed">
+    <parent link="baseplate"/>
+    <child  link="basemotor"/>
+    <origin xyz="-0.017907 0.042 0.0127" rpy="0 0 0"/>
+  </joint>
+
+  <!-- BASE MOTOR: Thickness: X5 = 31.1mm, X8 = 45.1mm -->
+  <link name="basemotor">
+    <visual>
+      <origin xyz="0 0.0 0.0" rpy="0 0 3.1416"/>
+      <geometry>
+        <mesh filename="package://project/meshes/X5.stl"
+	      scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="hebi"/>
+    </visual>
+  </link>
+
+  <joint name="base" type="continuous">
+    <parent link="basemotor"/>
+    <child  link="lbracket"/>
+    <origin xyz="0 0 0.0311" rpy="0 0 0"/>
+    <axis   xyz="0 0 1"/>
+  </joint>
+
+  <!-- BASE L BRACKET: Shift and rotate across the L bracket. -->
+  <link name="lbracket">
+    <visual>
+    <origin xyz="-0.051308 0.0381 0.0" rpy="1.5708 0 0"/>
+      <geometry>
+        <mesh filename="package://project/meshes/Lebracket.STL"
+	      scale="0.001 0.001 0.001"/> <!-- CHANGE STL FILE to new bracket -->
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="lbracket" type="fixed">
+    <parent link="lbracket"/>
+    <child  link="shouldermotor"/>
+    <origin xyz="-0.044958 0.0 0.058928" rpy="1.5708 0 1.5708"/>	  <!-- L BRACKET DIMENIONS -->
+  </joint>
+
+  <!-- SHOULDER MOTOR: Thickness: X5 = 31.1mm, X8 = 45.1mm -->
+  <link name="shouldermotor">
+    <visual>
+    <origin xyz="0 0.0 0.0" rpy="0 0 -1.5708"/>
+      <geometry>
+        <mesh filename="package://project/meshes/X8.stl"
+	      scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="hebi"/>
+    </visual>
+  </link>
+
+  <joint name="shoulder" type="continuous">
+    <parent link="shouldermotor"/>
+    <child  link="upperarm"/>
+    <origin xyz="0 0 0.05145" rpy="0 0 0"/>
+    <axis   xyz="0 0 1"/>
+  </joint>
+
+  <!-- UPPER ARM: Shift across the upper arm (1/4in thickness) -->
+  <link name="upperarm">
+    <visual>
+      <origin xyz="-0.03 -0.0325 0" rpy="-1.5708 0 0"/>
+      <geometry>
+        <mesh filename="package://project/meshes/BottomLink.STL"
+              scale="0.001 0.001 0.001"/> <!-- CHANGE STL FILE to lower link -->
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="toparm" type="fixed">
+    <parent link="upperarm"/>
+    <child  link="elbowmotor"/>
+    <origin xyz="0.354 0.0 -0.00635" rpy="3.1416 0 -1.5708"/>		  <!-- UPPER ARM DIMENIONS -->
+  </joint>
+
+  <!-- Elbow motor.  Thickness: X5 = 31.1mm, X8 = 45.1mm -->
+  <link name="elbowmotor">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 -1.5708"/>
+      <geometry>
+        <mesh filename="package://project/meshes/X5.stl"
+	      scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="hebi"/>
+    </visual>
+  </link>
+
+  <joint name="elbow" type="continuous">
+    <parent link="elbowmotor"/>
+    <child  link="lowerarm"/>
+    <origin xyz="0 0 0.0311" rpy="0 0 0"/>
+    <axis   xyz="0 0 1"/>
+  </joint>
+
+  <!-- Top Link! -->
+  <link name="lowerarm">
+    <visual>
+      <origin xyz="0.0325 0.03 0.0" rpy="1.5708 0 -1.5708"/>		
+      <geometry>
+        <mesh filename="package://project/meshes/AdjustedTopLink.STL"
+        scale="0.001 0.001 0.001"/> <!-- CHANGE STL FILE to upper link-->
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="linkgrip" type="fixed">
+    <parent link="lowerarm"/>
+    <child  link="grippermotor"/>
+    <origin xyz="0.0 -0.255 0" rpy="3.1416 0 0"/>		  <!-- UPPER ARM DIMENIONS -->
+  </joint>
+  
+  <!-- Motor to Turn gripper! -->
+  <link name="grippermotor">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 1.5708"/>
+      <geometry>
+        <mesh filename="package://project/meshes/X5.stl"
+	      scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="hebi"/>
+    </visual>
+  </link>
+
+  <joint name="wrist" type="continuous">
+    <parent link="grippermotor"/>
+    <child  link="gripperbracket"/>
+    <origin xyz="0 0 0.027925" rpy="0 0 0"/>
+    <axis   xyz="0 0 1"/>
+  </joint>
+
+ <!-- Bracket that holds gripper -->
+  <link name="gripperbracket">
+    <visual>
+      <origin xyz="-0.0325 0.05857 0" rpy="1.5708 -1.5708 1.5708"/>		
+      <geometry>
+        <mesh filename="package://project/meshes/Leassembly.STL"
+        scale="0.001 0.001 0.001"/> <!-- CHANGE STL FILE to gripper plate!!-->
+      </geometry>
+      <material name="gray"/>
+    </visual>
+  </link>
+
+  <joint name="gripper" type="fixed">
+    <parent link="gripperbracket"/>
+    <child  link="tip"/>
+    <origin xyz="0 0.05829 0.04" rpy="0 0 0"/>
+    <axis   xyz="0 0 1"/>
+  </joint>
+  
+  <!-- TIP FRAME -->
+  <link name="tip"/>
+
+  
+  <!-- *************************************************** -->
+  <!-- *************** Visual Link Elements ************** -->
+  <!-- *************************************************** -->
+  <!-- Note collada .dae files have better color/texture   -->
+  <!-- suppport that STL files.                            -->
+
+  <!-- Colors -->
+  <material name="wood">  <color rgba="0.82 0.62 0.04 1"/>  </material>
+  <material name="hebi">  <color rgba="0.82 0.06 0.06 1"/>  </material>
+  <material name="gray">  <color rgba="0.54 0.60 0.68 1"/>  </material>
+
+</robot>
+

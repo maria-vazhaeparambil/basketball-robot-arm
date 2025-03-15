@@ -1,4 +1,4 @@
-"""Launch the USB camera node and ball detector.
+"""Launch the USB camera node (only)
 
 This launch file is intended show how the pieces come together.
 Please copy the relevant pieces.
@@ -25,19 +25,19 @@ def generate_launch_description():
 
     # Configure the USB camera node
     node_usbcam = Node(
-        name       = 'usb_cam1', 
+        name       = 'usb_cam', 
         package    = 'usb_cam',
         executable = 'usb_cam_node_exe',
-        namespace  = 'usb_cam1',
+        namespace  = 'usb_cam',
         output     = 'screen',
-        parameters = [{'camera_name':  'logitech'},
-                      {'video_device': '/dev/video2'},
-                      {'pixel_format': 'yuyv2rgb'},
-                      {'image_width':  640},
-                      {'image_height': 480},
+        parameters = [{'camera_name':         'logitech'},
+                      {'video_device':        '/dev/video2'},
+                      {'pixel_format':        'yuyv2rgb'},
+                      {'image_width':         640},
+                      {'image_height':        480},
                       {'framerate':           15.0},
                       {'brightness':          130},
-                      {'contrast':            145},
+                      {'contrast':            135},
                       {'saturation':          128},
                       {'sharpness':           -1},
                       {'gain':                -1},
@@ -48,14 +48,6 @@ def generate_launch_description():
                       {'autofocus':           True},
                       {'focus':               -1}])
 
-    # Configure the ball detector node
-    node_balldetector = Node(
-        name       = 'balldetector', 
-        package    = 'detector',
-        executable = 'balldetector',
-        output     = 'screen',
-        remappings = [('/image_raw', '/usb_cam1/image_raw')])
-
 
     ######################################################################
     # COMBINE THE ELEMENTS INTO ONE LIST
@@ -65,5 +57,4 @@ def generate_launch_description():
 
         # Start the nodes.
         node_usbcam,
-        node_balldetector,
     ])

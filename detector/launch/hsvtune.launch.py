@@ -1,4 +1,4 @@
-"""Launch the USB camera node and ball detector.
+"""Launch the USB camera node and HSV tuning utility.
 
 This launch file is intended show how the pieces come together.
 Please copy the relevant pieces.
@@ -25,10 +25,10 @@ def generate_launch_description():
 
     # Configure the USB camera node
     node_usbcam = Node(
-        name       = 'usb_cam1', 
+        name       = 'usb_cam', 
         package    = 'usb_cam',
         executable = 'usb_cam_node_exe',
-        namespace  = 'usb_cam1',
+        namespace  = 'usb_cam',
         output     = 'screen',
         parameters = [{'camera_name':  'logitech'},
                       {'video_device': '/dev/video2'},
@@ -36,25 +36,25 @@ def generate_launch_description():
                       {'image_width':  640},
                       {'image_height': 480},
                       {'framerate':           15.0},
-                      {'brightness':          130},
-                      {'contrast':            145},
-                      {'saturation':          128},
+                      {'brightness':          -1},
+                      {'contrast':            -1},
+                      {'saturation':          -1},
                       {'sharpness':           -1},
                       {'gain':                -1},
-                      {'white_balance_temperature':  5000},
-                      {'white_balance_automatic': False},
+                      {'auto_white_balance':  False},
+                      {'white_balance':       4000},
                       {'autoexposure':        False},
                       {'exposure':            250},
                       {'autofocus':           True},
                       {'focus':               -1}])
 
-    # Configure the ball detector node
-    node_balldetector = Node(
-        name       = 'balldetector', 
+    # Configure the HSV tuning utility node
+    node_hsvtune = Node(
+        name       = 'hsvtuner', 
         package    = 'detector',
-        executable = 'balldetector',
+        executable = 'hsvtune',
         output     = 'screen',
-        remappings = [('/image_raw', '/usb_cam1/image_raw')])
+        remappings = [('/image_raw', '/usb_cam/image_raw')])
 
 
     ######################################################################
@@ -65,5 +65,5 @@ def generate_launch_description():
 
         # Start the nodes.
         node_usbcam,
-        node_balldetector,
+        node_hsvtune,
     ])

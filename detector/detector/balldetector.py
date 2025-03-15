@@ -35,8 +35,7 @@ class DetectorNode(Node):
     yellow = (255, 255,   0)
     white  = (255, 255, 255)
     
-    thickness = 0.007
-    height = 0.05
+    diameter = 0.135
 
     # Initialization.
     def __init__(self, name):
@@ -44,7 +43,7 @@ class DetectorNode(Node):
         super().__init__(name)
 
         # Thresholds in Hmin/max, Smin/max, Vmin/max
-        self.hsvlimits = np.array([[11, 24], [70, 220], [125, 255]])
+        self.hsvlimits = np.array([[144, 172], [95, 255], [75, 255]])
 
         # Create a publisher for the processed (debugging) images.
         # Store up to three images, just in case.
@@ -64,6 +63,11 @@ class DetectorNode(Node):
         self.get_logger().info("Ball detector running...")
         
         self.objspub = self.create_publisher(ObjectArray, '/objects', 10)
+        
+        self.stagnant = {}
+        self.threshold = 10
+        
+        self.M = None
 
     # Shutdown
     def shutdown(self):
@@ -87,38 +91,43 @@ class DetectorNode(Node):
 
         Return None for the point if not all the Aruco markers are detected
         '''
-
+        
         # Detect the Aruco markers (using the 4X4 dictionary).
         markerCorners, markerIds, _ = cv2.aruco.detectMarkers(
             image, cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50))
         if annotateImage:
             cv2.aruco.drawDetectedMarkers(image, markerCorners, markerIds)
-
+        
+        imp = True
+        
         # Abort if not all markers are detected.
         if (markerIds is None or len(markerIds) != 4 or
-            set(markerIds.flatten()) != set([1,2,3,4])):
-            return None
+            set(markerIds.flatten()) != set([0,1,2,3])):
+            if self.M is None:
+                return None
+            else:
+                imp = False
+
+        if imp:
+            # Determine the center of the marker pixel coordinates.
+            uvMarkers = np.zeros((4,2), dtype='float32')
+            for i in range(4):
+                uvMarkers[markerIds[i],:] = np.mean(markerCorners[i], axis=1)
+
+            # Calculate the matching World coordinates of the 4 Aruco markers.
+            DX = 0.2325
+            DY = 0.5
+            xyMarkers = np.float32([[x0+dx, y0+dy] for (dx, dy) in
+                                   [(-DX, DY), (DX, DY), (-DX, -DY), (DX, -DY)]])
 
 
-        # Determine the center of the marker pixel coordinates.
-        uvMarkers = np.zeros((4,2), dtype='float32')
-        for i in range(4):
-            uvMarkers[markerIds[i]-1,:] = np.mean(markerCorners[i], axis=1)
-
-        # Calculate the matching World coordinates of the 4 Aruco markers.
-        DX = 0.1016
-        DY = 0.06985
-        xyMarkers = np.float32([[x0+dx, y0+dy] for (dx, dy) in
-                                [(-DX, DY), (DX, DY), (-DX, -DY), (DX, -DY)]])
-
-
-        # Create the perspective transform.
-        M = cv2.getPerspectiveTransform(uvMarkers, xyMarkers)
+            # Create the perspective transform.
+            M = cv2.getPerspectiveTransform(uvMarkers, xyMarkers)
+            self.M = M
 
         # Map the object in question.
         uvObj = np.float32([u, v])
-        xyObj = cv2.perspectiveTransform(uvObj.reshape(1,1,2), M).reshape(2)
-
+        xyObj = cv2.perspectiveTransform(uvObj.reshape(1,1,2), self.M).reshape(2)
 
         # Mark the detected coordinates.
         if annotateImage:
@@ -128,6 +137,33 @@ class DetectorNode(Node):
                         0.5, (255, 0, 0), 2, cv2.LINE_AA)
 
         return xyObj
+        
+    def stationary(self, lst):
+        
+        ret = ObjectArray()
+        n = {}
+        for (x, y) in lst:
+            k1 = (x, y)
+            flag = False
+            for k2 in self.stagnant.keys():
+                if np.linalg.norm(np.array(k1) - np.array(k2)) < 0.01:
+                    if self.stagnant[k2] + 1 > self.threshold:
+                        obj = Object()
+                        obj_type = 0
+                        pose = Pose()
+                        pose.position.x = float(x)
+                        pose.position.y = float(y)
+                        pose.position.z = self.diameter
+                        obj.type = obj_type
+                        obj.pose = pose
+                        ret.objects.append(obj)
+                    else:
+                        n[k1] = self.stagnant[k2] + 1
+                    flag = True
+            if not flag:
+                n[k1] = 1
+        self.stagnant = n
+        self.objspub.publish(ret)
 
 
     # Process the image (detect the ball).
@@ -150,8 +186,8 @@ class DetectorNode(Node):
         uc = W//2
         vc = H//2
         
-        x0 = -0.436
-        y0 = 0.766
+        x0 = -0.0315
+        y0 = 0.62
 
         # Help to determine the HSV range...
         if True:
@@ -172,32 +208,47 @@ class DetectorNode(Node):
         binary = cv2.erode( binary, None, iterations=iter)
         binary = cv2.dilate(binary, None, iterations=2*iter)
         binary = cv2.erode( binary, None, iterations=iter)
-
-
+        
+        lst = []
+        
+        #circles = cv2.HoughCircles(binary, cv2.HOUGH_GRADIENT, 2, 20, param1=50, param2=30, minRadius=0, maxRadius=0)
+        #if circles is not None:   
+        #    circles = np.uint16(np.around(circles))
+        #    for circ in circles[0, :]:
+        #        cv2.circle(frame, (circ[0], circ[1]), circ[2], self.yellow, 2)
+        #        cv2.circle(frame, (circ[0], circ[1]), 5,       self.red,   -1)
+        #        center = self.pixelToWorld(frame, circ[0], circ[1], x0, y0, True)
+        #        if center is not None:
+        #            lst.append((center[0], center[1]))
+        
+        
         # Find contours in the mask and initialize the current
         # (x, y) center of the ball
         (contours, hierarchy) = cv2.findContours(
             binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
+            
         # Draw all contours on the original image for debugging.
         cv2.drawContours(frame, contours, -1, self.blue, 2)
 
         # Only proceed if at least one contour was found.  You may
         # also want to loop over the contours...
 
-        lst = ObjectArray()
-
         for cnt in contours:
-            obj = Object()
-            obj_type = None
-            pose = Pose()
             contour_area = cv2.contourArea(cnt)
             rect = cv2.minAreaRect(cnt)
             ((x, y), (w, h), angle) = rect
-            if w < h:
-                ratio = w/h
-            else: 
-                ratio = h/w
+            
+            if h < w:
+                temp = w
+                w = h
+                h = temp
+                angle -= 90
+            angle *= np.pi/180
+            ratio = w/h
+            
+            #if round(contour_area, -3) == 6000:
+            #    oval = cv2.SimpleBlobDetector(cnt)
+            #	#center = self.pixelToWorld(frame, ur, vr, x0, y0, True)          
             if ratio > 0.6:
                 # Find the enclosing circle (convert to pixel values)
                 ((ur, vr), radius) = cv2.minEnclosingCircle(cnt)
@@ -210,39 +261,19 @@ class DetectorNode(Node):
                 cv2.circle(frame, (ur, vr), int(radius), self.yellow,  2)
                 cv2.circle(frame, (ur, vr), 5,           self.red,    -1)
                     
-                discCenter = self.pixelToWorld(frame, ur, vr, x0, y0, False)
-                if discCenter is not None:
-                    obj_type = 0
-                    pose.position.x = float(discCenter[0])
-                    pose.position.y = float(discCenter[1])
-                    pose.position.z = self.thickness
+                center = self.pixelToWorld(frame, ur, vr, x0, y0, True)
+                if center is not None:
+                    lst.append((center[0], center[1]))
             else:
                 box = cv2.boxPoints(rect)
                 box = np.int0(box)
                 cv2.drawContours(frame, [box], 0, self.green, 2)
-                cv2.circle(frame, (int(x), int(y)), 5, self.red, -1)
-               
-                rectCenter = self.pixelToWorld(frame, int(x), int(y), x0, y0, False)
-                if w > h:
-                    angle -= 90
-                angle *= np.pi/180
-                  
-                if rectCenter is not None:
-                    obj_type = 1
-                    pose.position.x = float(rectCenter[0])
-                    pose.position.y = float(rectCenter[1])
-                    pose.position.z = self.height
-
-                    pose.orientation.x = 0.0
-                    pose.orientation.y = 0.0
-                    pose.orientation.z = np.sin(angle/2)
-                    pose.orientation.w = np.cos(angle/2)        
-            if obj_type != None:
-                obj.type = obj_type
-                obj.pose = pose
-                lst.objects.append(obj)
-              
-        self.objspub.publish(lst)
+                x_mid = np.uint16(x + h/4 * np.sin(angle))
+                y_mid = np.uint16(y - h/4 * np.cos(angle))
+                cv2.circle(frame, (x_mid, y_mid), 5, self.red,   -1)
+                center = self.pixelToWorld(frame, x_mid, y_mid, x0, y0, True)
+                lst.append((center[0], center[1]))
+        self.stationary(lst)
 
         # Convert the frame back into a ROS image and republish.
         self.pubrgb.publish(self.bridge.cv2_to_imgmsg(frame, "rgb8"))
