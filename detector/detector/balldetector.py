@@ -24,6 +24,9 @@ from geometry_msgs.msg  import Pose
 
 from custom_msgs.msg import Object
 from custom_msgs.msg import ObjectArray
+
+import random
+
 #
 #  Detector Node Class
 #
@@ -43,7 +46,8 @@ class DetectorNode(Node):
         super().__init__(name)
 
         # Thresholds in Hmin/max, Smin/max, Vmin/max
-        self.hsvlimits = np.array([[144, 172], [95, 255], [75, 255]])
+        self.hsvlimits_pink = np.array([[144, 172], [95, 255], [75, 255]])
+        self.hsvlimits_blue = np.array([[108, 119], [101, 255], [77, 255]])
 
         # Create a publisher for the processed (debugging) images.
         # Store up to three images, just in case.
@@ -141,15 +145,16 @@ class DetectorNode(Node):
     def stationary(self, lst):
         
         ret = ObjectArray()
+        ret_length = 0
         n = {}
-        for (x, y) in lst:
+        for (x, y, t) in lst:
             k1 = (x, y)
             flag = False
             for k2 in self.stagnant.keys():
                 if np.linalg.norm(np.array(k1) - np.array(k2)) < 0.01:
                     if self.stagnant[k2] + 1 > self.threshold:
                         obj = Object()
-                        obj_type = 0
+                        obj_type = t
                         pose = Pose()
                         pose.position.x = float(x)
                         pose.position.y = float(y)
@@ -157,13 +162,14 @@ class DetectorNode(Node):
                         obj.type = obj_type
                         obj.pose = pose
                         ret.objects.append(obj)
+                        ret_length += 1
                     else:
                         n[k1] = self.stagnant[k2] + 1
                     flag = True
             if not flag:
                 n[k1] = 1
         self.stagnant = n
-        self.objspub.publish(ret)
+        return ret, ret_length
 
 
     # Process the image (detect the ball).
@@ -200,40 +206,42 @@ class DetectorNode(Node):
             #    "HSV = (%3d, %3d, %3d)" % tuple(hsv[vc, uc]))
 
         
+        binary_blue = cv2.inRange(hsv, self.hsvlimits_blue[:,0], self.hsvlimits_blue[:,1])
+        iter = 4
+        binary_blue = cv2.erode(binary_blue, None, iterations=iter)
+        binary_blue = cv2.dilate(binary_blue, None, iterations=2*iter)
+        binary_blue = cv2.erode(binary_blue, None, iterations=iter)
+    
+        (contours_blue, hierarchy_blue) = cv2.findContours(
+            binary_blue, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)         
+        
         # Threshold in Hmin/max, Smin/max, Vmin/max
-        binary = cv2.inRange(hsv, self.hsvlimits[:,0], self.hsvlimits[:,1])
+        binary_pink = cv2.inRange(hsv, self.hsvlimits_pink[:,0], self.hsvlimits_pink[:,1])
 
         # Erode and Dilate. Definitely adjust the iterations!
         iter = 4
-        binary = cv2.erode( binary, None, iterations=iter)
-        binary = cv2.dilate(binary, None, iterations=2*iter)
-        binary = cv2.erode( binary, None, iterations=iter)
-        
-        lst = []
-        
-        #circles = cv2.HoughCircles(binary, cv2.HOUGH_GRADIENT, 2, 20, param1=50, param2=30, minRadius=0, maxRadius=0)
-        #if circles is not None:   
-        #    circles = np.uint16(np.around(circles))
-        #    for circ in circles[0, :]:
-        #        cv2.circle(frame, (circ[0], circ[1]), circ[2], self.yellow, 2)
-        #        cv2.circle(frame, (circ[0], circ[1]), 5,       self.red,   -1)
-        #        center = self.pixelToWorld(frame, circ[0], circ[1], x0, y0, True)
-        #        if center is not None:
-        #            lst.append((center[0], center[1]))
-        
+        binary_pink = cv2.erode(binary_pink, None, iterations=iter)
+        binary_pink = cv2.dilate(binary_pink, None, iterations=2*iter)
+        binary_pink = cv2.erode(binary_pink, None, iterations=iter)
         
         # Find contours in the mask and initialize the current
         # (x, y) center of the ball
-        (contours, hierarchy) = cv2.findContours(
-            binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        (contours_pink, hierarchy_pink) = cv2.findContours(
+            binary_pink, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             
         # Draw all contours on the original image for debugging.
-        cv2.drawContours(frame, contours, -1, self.blue, 2)
+        cv2.drawContours(frame, contours_pink, -1, self.blue, 2)
+        
+        shuffled_pink = list(contours_pink)
+        random.shuffle(shuffled_pink)
+        contours = contours_blue + tuple(shuffled_pink)
 
         # Only proceed if at least one contour was found.  You may
         # also want to loop over the contours...
+        
+        lst = []
 
-        for cnt in contours:
+        for i, cnt in enumerate(contours):
             contour_area = cv2.contourArea(cnt)
             rect = cv2.minAreaRect(cnt)
             ((x, y), (w, h), angle) = rect
@@ -245,10 +253,7 @@ class DetectorNode(Node):
                 angle -= 90
             angle *= np.pi/180
             ratio = w/h
-            
-            #if round(contour_area, -3) == 6000:
-            #    oval = cv2.SimpleBlobDetector(cnt)
-            #	#center = self.pixelToWorld(frame, ur, vr, x0, y0, True)          
+                    
             if ratio > 0.6:
                 # Find the enclosing circle (convert to pixel values)
                 ((ur, vr), radius) = cv2.minEnclosingCircle(cnt)
@@ -263,7 +268,10 @@ class DetectorNode(Node):
                     
                 center = self.pixelToWorld(frame, ur, vr, x0, y0, True)
                 if center is not None:
-                    lst.append((center[0], center[1]))
+                    if i < len(contours_blue):
+                        lst.append((center[0], center[1], 0))
+                    else:
+                        lst.append((center[0], center[1], 1))
             else:
                 box = cv2.boxPoints(rect)
                 box = np.int0(box)
@@ -272,14 +280,19 @@ class DetectorNode(Node):
                 y_mid = np.uint16(y - h/4 * np.cos(angle))
                 cv2.circle(frame, (x_mid, y_mid), 5, self.red,   -1)
                 center = self.pixelToWorld(frame, x_mid, y_mid, x0, y0, True)
-                lst.append((center[0], center[1]))
-        self.stationary(lst)
+                if center is not None:
+                    if i < len(contours_blue):
+                        lst.append((center[0], center[1], 0))
+                    else:
+                        lst.append((center[0], center[1], 1))
+        ret, _ = self.stationary(lst)
+        self.objspub.publish(ret)
 
         # Convert the frame back into a ROS image and republish.
         self.pubrgb.publish(self.bridge.cv2_to_imgmsg(frame, "rgb8"))
 
         # Also publish the binary (black/white) image.
-        self.pubbin.publish(self.bridge.cv2_to_imgmsg(binary))
+        self.pubbin.publish(self.bridge.cv2_to_imgmsg(binary_pink))
 
 
 #

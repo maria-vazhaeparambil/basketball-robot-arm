@@ -65,12 +65,18 @@ class DetectorNode(Node):
         
         self.objspub = self.create_publisher(Object, '/targets', 10)
         
+        self.start = datetime.now()
         self.min_pos = np.inf
         self.max_pos = -np.inf
-        self.flag = 0
-        self.start = datetime.now()
         self.max_time = None
         self.min_time = None
+        
+        self.curr_start = 0
+        self.curr_start_time = None
+        self.curr_min_pos = np.inf
+        self.curr_max_pos = -np.inf
+        self.curr_min_time = None
+        self.curr_max_time = None
         
         self.M = None
         
@@ -167,9 +173,31 @@ class DetectorNode(Node):
                 self.min_pos = float(xzObj[0])
                 self.min_time = datetime.now()
         else:
-        
+            if self.curr_start == False:
+               self.curr_start = True
+               self.curr_start_time = datetime.now()
+               self.curr_min_pos = np.inf
+               self.curr_max_pos = -np.inf
+               self.curr_min_time = None
+               self.curr_max_time = None
+            
+            if self.curr_start:     
+                if float(xzObj[0]) > self.curr_max_pos:
+                    self.curr_max_pos = float(xzObj[0])
+                    self.curr_max_time = datetime.now()
+                if float(xzObj[0]) < self.curr_min_pos:
+                    self.curr_min_pos = float(xzObj[0])
+                    self.curr_min_time = datetime.now()
+                
+            if self.curr_start and (datetime.now() - self.curr_start_time).total_seconds() >= 16:
+                self.max_pos = self.curr_max_pos
+                self.max_time = self.curr_max_time
+                self.min_pos = self.curr_min_pos
+                self.min_time = self.curr_min_time
+                curr_start = False
+            
             obj = Object()
-            obj.type = 1
+            obj.type = 2
             pose = Pose()
         
             #pose.position.x = float(xzObj[0])

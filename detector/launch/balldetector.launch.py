@@ -36,7 +36,7 @@ def generate_launch_description():
                       {'image_width':  640},
                       {'image_height': 480},
                       {'framerate':           15.0},
-                      {'brightness':          130},
+                      {'brightness':          140},
                       {'contrast':            145},
                       {'saturation':          128},
                       {'sharpness':           -1},

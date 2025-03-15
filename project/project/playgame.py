@@ -43,50 +43,19 @@ class Spline():
         vf = np.array(segment.vf)
         T = self.T
         
-        p1 = pf
-        if self.throw == 1:
-            T *= 0.05
-            vf = (pf - p0)/self.T * 1/0.95
-            p1 = p0 + vf/2 * T
-        self.p1 = p1 
-        self.vf = vf
-        
         self.a = p0
         self.b = v0
         self.c = np.zeros_like(p0)
-        self.d = + 10*(p1-p0)/T**3 - 6*v0/T**2 - 4*vf/T**2
-        self.e = - 15*(p1-p0)/T**4 + 8*v0/T**3 + 7*vf/T**3
-        self.f = + 6*(p1-p0)/T**5 - 3*v0/T**4 - 3*vf/T**4
-        
-        p2 = self.p1 + self.T * 0.9 * vf
-        self.a2 = p2
-        self.b2 = vf
-        self.c2 = np.zeros_like(p0)
-        self.d2 = + 10*(pf-p2)/T**3 - 6*vf/T**2
-        self.e2 = - 15*(pf-p2)/T**4 + 8*vf/T**3
-        self.f2 = + 6*(pf-p2)/T**5 - 3*vf/T**4
+        self.d = + 10*(pf-p0)/T**3 - 6*v0/T**2 - 4*vf/T**2
+        self.e = - 15*(pf-p0)/T**4 + 8*v0/T**3 + 7*vf/T**3
+        self.f = + 6*(pf-p0)/T**5 - 3*v0/T**4 - 3*vf/T**4
         
         # Evaluation at any time (Shortening self to s).
     def evaluate(s, t):
         # Get the time relative to the start time.
         t = t - s.t0
-        
-        if s.throw != 1:
-            # Compute the current commands.
-            p = s.a + s.b*t + s.c*t**2 + s.d*t**3 + s.e*t**4 + s.f*t**5
-            v = s.b + 2*s.c*t + 3*s.d*t**2 + 4*s.e*t**3 + 5*s.f*t**4
-        else:
-            if t < s.T * 0.05:
-                p = s.a + s.b*t + s.c*t**2 + s.d*t**3 + s.e*t**4 + s.f*t**5
-                v = s.b + 2*s.c*t + 3*s.d*t**2 + 4*s.e*t**3 + 5*s.f*t**4
-            elif t < s.T * 0.95:
-                p = s.p1 + (t - s.T * 0.05) * s.vf
-                v = s.vf
-            else:
-                t2 = t - 0.95 * s.T
-                p = s.a2 + s.b2*t2 + s.c2*t2**2 + s.d2*t2**3 + s.e2*t2**4 + s.f2*t2**5
-                v = s.b2 + 2*s.c2*t2 + 3*s.d2*t2**2 + 4*s.e2*t2**3 + 5*s.f2*t2**4
-        # Return as a list.
+        p = s.a + s.b*t + s.c*t**2 + s.d*t**3 + s.e*t**4 + s.f*t**5
+        v = s.b + 2*s.c*t + 3*s.d*t**2 + 4*s.e*t**3 + 5*s.f*t**4
         return (p.tolist(),v.tolist())
             
     
@@ -154,8 +123,8 @@ class DemoNode(Node):
         self.release.append(self.pick_up)
         
         self.count = 0
-        self.ending = False
-        self.threshold = 10
+        self.ending = 0
+        self.threshold = 1
         
         self.pcmd = self.position0
         self.vcmd = [0.0, 0.0, 0.0, 0.0, 0.0]
@@ -288,22 +257,37 @@ class DemoNode(Node):
                         self.segments.append(Segment(q, [0, 0, 0, 0, 0], self.traj_time, 0))
                         q[-1] = self.pick_up
                         self.segments.append(Segment(q, [0, 0, 0, 0, 0], self.grip_time, 0))
+                        wait = [0, np.pi/2, np.pi/2, 0, self.pick_up]
+                        self.segments.append(Segment(wait, [0, 0, 0, 0, 0], self.traj_time, 1))
+                        put_down = [-1.32, 0.44, 0.46, 0, self.pick_up]
+                        self.segments.append(Segment(put_down, [0, 0, 0, 0, 0], self.traj_time, 1))
+                        put_down[-1] = 0
+                        self.segments.append(Segment(put_down, [0, 0, 0, 0, 0], self.grip_time, 0))   
+                        self.segments.append(Segment(self.waiting, [0, 0, 0, 0, 0], self.traj_time, 0))        
                         
-                        # throw 1
-                        #up = [0, np.pi/2, np.pi/2, 0, -0.6]
-                        #self.segments.append(Segment(up, [0, 0, 0, 0, 0], self.traj_time, 2))
-                        #self.segments.append(Segment(self.load, [0, 0, 0, 0, 0], self.traj_time, 2))
-                        #time = 1
-                        #self.segments.append(Segment(self.release,[0, 0, 0, 0, 0] , time, 1)) 
+                elif obj.type == 1 and obj.pose.position.y < 0.6:
+                    pos = [obj.pose.position.x, obj.pose.position.y, obj.pose.position.z]
+                    if obj.pose.position.x > 0.18:
+                        pos[0] = 0.18
+                    elif obj.pose.position.x < -0.204:
+                        pos[0] = -0.204
+                    if obj.pose.position.y < 0.327:
+                        pos[1] = 0.327
+                    q = self.newton_raphson_angle(pos, self.guess, True)
+                    if q is not None:
+                        q = list(q)
+                        q.append(0)
+                        self.segments.append(Segment(q, [0, 0, 0, 0, 0], self.traj_time, 0))
+                        q[-1] = self.pick_up
+                        self.segments.append(Segment(q, [0, 0, 0, 0, 0], self.grip_time, 0))
                         
-                        # 0.0196
                         base_angle = np.arctan((self.backboard[0] - 0.0255)/1.4169)
                         self.get_logger().info("backboard: %r" % (self.backboard[0]))
                         self.get_logger().info("base angle: %r" % (base_angle))
   
                         
-                        self.segments.append(Segment([-base_angle, np.pi/2, -np.pi/3, 0, self.pick_up], [0, 0, 0, 0, 0], self.traj_time, 2))
-                        self.segments.append(Segment([-base_angle, np.pi/3, np.pi/4, 0, -0.33], [0, 0, 0, 0, 0], 0.5, 3))          
+                        self.segments.append(Segment([-base_angle, np.pi/2, -np.pi/3, 0, self.pick_up], [0, 0, 0, 0, 0], self.traj_time, 1))
+                        self.segments.append(Segment([-base_angle, np.pi/3, np.pi/4, 0, -0.3], [0, 0, 0, 0, 0], 0.5, 2))          
                         
     # Receive a message - called by incoming messages.
     def recvtarg(self, objsmsg):
@@ -311,7 +295,7 @@ class DemoNode(Node):
         # Extract the data.
         obj = objsmsg
         if not self.spline and len(self.segments) == 0:
-            if obj.type == 1:
+            if obj.type == 2:
                 self.backboard = [obj.pose.position.x, obj.pose.position.y, obj.pose.position.z]
             
         
@@ -329,12 +313,20 @@ class DemoNode(Node):
         now = self.get_clock().now()
         t   = (now - self.starttime).nanoseconds * 1e-9
         
-        if self.count == self.threshold and not self.spline and self.ending == False:
+        if self.count == self.threshold and not self.spline and self.ending == 0:
+            hf = [-3*np.pi/4, np.pi/4, -np.pi/4, -np.pi/2, 0]
+            self.spline = Spline(t, self.pcmd, self.vcmd, Segment(hf, [0, 0, 0, 0, 0], self.traj_time, 0), 0)
+            self.ending = 1
+        elif self.count == self.threshold and not self.spline and self.ending == 1:
+            self.spline = Spline(t, self.pcmd, self.vcmd, Segment(self.waiting, [0, 0, 0, 0, 0], self.traj_time, 0), 0)
+            self.ending = 2
+        elif self.count == self.threshold and not self.spline and self.ending == 2:
             end = [0, np.pi/5, np.pi/2 + np.pi/5, np.pi/2, 0]
             self.spline = Spline(t, self.pcmd, self.vcmd, Segment(end, [0, 0, 0, 0, 0], self.traj_time, 0), 0)
-            self.ending = True
-        elif self.count == self.threshold and not self.spline and self.ending:
+            self.ending = 3
+        elif self.count == self.threshold and not self.spline and self.ending == 3:
             exit()
+            
         if False:
             tau = self.gravity(self.actpos)
             self.sendcmd([], [], tau)
@@ -352,23 +344,21 @@ class DemoNode(Node):
             # Without a current spline but a waiting segment, pop and start it.
             if not self.spline and len(self.segments) > 0:
                 seg = self.segments.pop(0)
-                if seg.throw == 2 and np.abs(self.pcmd[4] - self.actpos[4]) < 0.15:
-                    self.segments = [Segment(self.waiting, [0, 0, 0, 0, 0], self.traj_time, 0)]
-                else:
-                    if seg.throw == 3:
-                        self.count += 1
-                    self.spline = Spline(t, self.pcmd, self.vcmd, seg, seg.throw)                 
+                #if seg.throw == 1 and np.abs(self.pcmd[4] - self.actpos[4]) < 0: # 0.15
+                #    self.segments = [Segment(self.waiting, [0, 0, 0, 0, 0], self.traj_time, 0)]
+                #else:
+                if seg.throw == 2:
+                    self.count += 1
+                self.spline = Spline(t, self.pcmd, self.vcmd, seg, seg.throw)                 
             #elif not self.spline and len(self.segments) == 0:
             #    self.segments = [Segment(self.waiting, [0, 0, 0, 0, 0], self.traj_time, 0)]
             # If there is a spline, compute it. Else just hold.
             if self.spline:
-                if self.spline.throw == 2 and np.abs(self.pcmd[4] - self.actpos[4]) < 0.15:
+                if self.spline.throw == 1 and np.abs(self.pcmd[4] - self.actpos[4]) < 0: #0.15
                     self.spline = Spline(t, self.pcmd, self.vcmd, Segment(self.waiting, [0, 0, 0, 0, 0], self.traj_time, 0), 0)
                     self.segments = []
                 else:
                     (self.pcmd, self.vcmd) = self.spline.evaluate(t)
-                    #if self.spline.throw == 1 and t - self.spline.t0 > self.spline.T*8/10:
-                    #    self.pcmd[-1] = 0.0
         
             else:
                 (self.pcmd, self.vcmd) = (self.pcmd, [0.0 for _ in self.vcmd])
