@@ -59,9 +59,6 @@ class DetectorNode(Node):
         # stored for the next subscriber callback.
         self.sub = self.create_subscription(
             Image, '/image_raw', self.process, 1)
-
-        # Report.
-        self.get_logger().info("ArUco detector running...")
         
         self.objspub = self.create_publisher(Object, '/targets', 10)
         
@@ -77,6 +74,8 @@ class DetectorNode(Node):
         self.curr_max_pos = -np.inf
         self.curr_min_time = None
         self.curr_max_time = None
+        
+        self.print = False
         
         self.M = None
         
@@ -173,6 +172,9 @@ class DetectorNode(Node):
                 self.min_pos = float(xzObj[0])
                 self.min_time = datetime.now()
         else:
+            if not self.print:
+                self.get_logger().info("Start running robot...")
+                self.print = True
             if self.curr_start == False:
                self.curr_start = True
                self.curr_start_time = datetime.now()
