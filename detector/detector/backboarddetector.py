@@ -68,7 +68,7 @@ class DetectorNode(Node):
         self.max_time = None
         self.min_time = None
         
-        self.curr_start = 0
+        self.curr_start = False
         self.curr_start_time = None
         self.curr_min_pos = np.inf
         self.curr_max_pos = -np.inf
@@ -85,14 +85,14 @@ class DetectorNode(Node):
         slope = (self.max_pos - self.min_pos)/(diff - hold)
         total_period = 2 * diff
         phase = (t - self.max_time).total_seconds() % total_period
-        if phase <= diff - hold:
-            return self.max_pos - slope * phase
-        elif phase <= diff:
-            return self.min_pos
-        elif phase <= diff * 2 - hold:
-            return self.min_pos + slope * (phase - diff * 2 + hold)
-        else:
+        if phase <= hold:
             return self.max_pos
+        elif phase <= diff:
+            return self.max_pos - slope * (phase - hold)
+        elif phase <= diff + hold:
+            return self.min_pos
+        else:
+            return self.min_pos + slope * (phase - diff - hold)
         
 
     # Shutdown
@@ -164,7 +164,7 @@ class DetectorNode(Node):
         # Convert the frame back into a ROS image and republish.
         self.pub.publish(self.bridge.cv2_to_imgmsg(frame, "rgb8"))
         
-        if ((datetime.now() - self.start).total_seconds() < 16):
+        if ((datetime.now() - self.start).total_seconds() < 30):
             if float(xzObj[0]) > self.max_pos:
                 self.max_pos = float(xzObj[0])
                 self.max_time = datetime.now()
@@ -191,20 +191,22 @@ class DetectorNode(Node):
                     self.curr_min_pos = float(xzObj[0])
                     self.curr_min_time = datetime.now()
                 
-            if self.curr_start and (datetime.now() - self.curr_start_time).total_seconds() >= 16:
+            if self.curr_start and (datetime.now() - self.curr_start_time).total_seconds() >= 30:
+                self.get_logger().info("Updating...")
                 self.max_pos = self.curr_max_pos
                 self.max_time = self.curr_max_time
                 self.min_pos = self.curr_min_pos
                 self.min_time = self.curr_min_time
-                curr_start = False
+                self.curr_start = False
             
             obj = Object()
             obj.type = 2
             pose = Pose()
         
             #pose.position.x = float(xzObj[0])
-
-            pose.position.x = self.predict_pos(datetime.now() + timedelta(seconds=11.98))
+            
+            #self.get_logger().info("%r" % self.predict_pos(datetime.now()))
+            pose.position.x = self.predict_pos(datetime.now() + timedelta(seconds=12))
             pose.position.y = 1.473
             pose.position.z = float(xzObj[1])
             obj.pose = pose

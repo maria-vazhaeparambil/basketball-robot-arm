@@ -123,7 +123,7 @@ class DemoNode(Node):
         
         self.count = 0
         self.ending = 0
-        self.threshold = 10
+        self.threshold = 5
         
         self.nothing = 0
         
@@ -213,6 +213,10 @@ class DemoNode(Node):
             (p, _, J, _) = self.chain.fkin(theta)
             J_inv = np.linalg.inv(J.T @ J + (gamma ** 2) * np.identity(len(J[0]))) @ J.T
             iternum += 1
+            # hasattr(self, "pcmd")  and hasattr(self, "vcmd") :
+            #    (self.pcmd, self.vcmd) = (self.pcmd, [0.0 for _ in self.vcmd])
+            #    tau = self.gravity(self.actpos)
+            #    self.sendcmd(self.pcmd, self.vcmd, tau)
             if iternum > 100:
                 self.dont_calc.append(finalp)
                 self.get_logger().info("Newton-Raphson failed to converge.")
@@ -230,29 +234,41 @@ class DemoNode(Node):
                 valid = True
                 for check in self.dont_calc:
                     if obj.pose.position.y < 0.327 or obj.pose.position.x > 0.16485 or obj.pose.position.x < -0.19985:
-                        if np.linalg.norm(np.array(check) - np.array([obj.pose.position.x, obj.pose.position.y, obj.pose.position.z + 0.19])) < 0.01:
+                        (p, _, _, _) = self.chain.fkin([0, np.pi/3.5, np.pi/3, -np.pi/4])
+                        diff = np.linalg.norm(np.array([obj.pose.position.x, obj.pose.position.y])-p[:2])
+                        pos2 = np.array([obj.pose.position.x, obj.pose.position.y]) - 0.06*diff
+                        pos2 = list(pos2)
+                        pos2.append(obj.pose.position.z + 0.055)
+                        if np.linalg.norm(np.array(check) - np.array([obj.pose.position.x, obj.pose.position.y, obj.pose.position.z + 0.13])) < 0.02:
+                            valid = False
+                        if np.linalg.norm(np.array(check) - np.array(pos2)) < 0.015:
                             valid = False
                     else:
-                        if np.linalg.norm(np.array(check) - np.array([obj.pose.position.x, obj.pose.position.y, obj.pose.position.z])) < 0.01:
+                        if np.linalg.norm(np.array(check) - np.array([obj.pose.position.x, obj.pose.position.y, obj.pose.position.z])) < 0.02:
                             valid = False
                 if valid and obj.pose.position.y < 0.6:
                     self.get_logger().info("Adding object of type %r to queue: (%r, %r)." % (obj.type, obj.pose.position.x, obj.pose.position.y))
-                    if obj.pose.position.y < 0.327 or obj.pose.position.x > 0.16485 or obj.pose.position.x < -0.19985:
-#                    	if obj.pose.position.y < 0.327 or obj.pose.position.x > 0.18 or obj.pose.position.x < -0.204:
-                        self.get_logger().info("drag")
-                        pos1 = [obj.pose.position.x, obj.pose.position.y, obj.pose.position.z + 0.16]
-                        pos2 = [obj.pose.position.x, obj.pose.position.y, obj.pose.position.z + 0.08]
-                        q1 = self.newton_raphson_angle(pos1, self.guess, True)
-                        q2 = self.newton_raphson_angle(pos2, self.guess, True)
-                        if q1 is not None and q2 is not None:
-                            q1 = list(q1)
-                            q1.append(self.pick_up)
-                            q2 = list(q2)
-                            q2.append(self.pick_up)
-                            self.segments.append(Segment(q1, [0, 0, 0, 0, 0], self.traj_time, 0))
-                            self.segments.append(Segment(q2, [0, 0, 0, 0, 0], self.traj_time/2, 0))
-                            self.segments.append(Segment([0, np.pi/3.5, np.pi/3, -np.pi/4, self.pick_up], [0, 0, 0, 0, 0], self.traj_time, 0))
-                            self.segments.append(Segment(self.waiting, [0, 0, 0, 0, 0], self.traj_time, 0)) 
+                    if (obj.pose.position.y < 0.327 or obj.pose.position.x > 0.16485 or obj.pose.position.x < -0.19985):
+                        if obj.pose.position.y < 0.55:
+                            self.get_logger().info("drag")
+                            pos1 = [obj.pose.position.x, obj.pose.position.y, obj.pose.position.z + 0.13]
+                            q1 = self.newton_raphson_angle(pos1, self.guess, True)
+                            if q1 is not None:
+                                (p, _, _, _) = self.chain.fkin([0, np.pi/3.5, np.pi/3, -np.pi/4])
+                                diff = np.linalg.norm(np.array([obj.pose.position.x, obj.pose.position.y])-p[:2])
+                                pos2 = np.array([obj.pose.position.x, obj.pose.position.y]) - 0.0625*diff
+                                pos2 = list(pos2)
+                                pos2.append(obj.pose.position.z + 0.055)
+                                q2 = self.newton_raphson_angle(pos2, self.guess, True)
+                                if q2 is not None:
+                                    q1 = list(q1)
+                                    q1.append(self.pick_up)
+                                    q2 = list(q2)
+                                    q2.append(self.pick_up)
+                                    self.segments.append(Segment(q1, [0, 0, 0, 0, 0], self.traj_time, 0))
+                                    self.segments.append(Segment(q2, [0, 0, 0, 0, 0], self.traj_time/2, 0))
+                                    self.segments.append(Segment([0, np.pi/3.5, np.pi/3, -np.pi/4, self.pick_up], [0, 0, 0, 0, 0], self.traj_time, 0))
+                                    self.segments.append(Segment(self.waiting, [0, 0, 0, 0, 0], self.traj_time, 0)) 
                     else:
                         pos = [obj.pose.position.x, obj.pose.position.y, obj.pose.position.z]
                         q = self.newton_raphson_angle(pos, self.guess, True)
@@ -347,7 +363,7 @@ class DemoNode(Node):
             # If there is a spline, compute it. Else just hold.
             if self.spline:
                 self.nothing = 0
-                if self.spline.throw == 1 and np.abs(self.pcmd[4] - self.actpos[4]) < 0: # 0.15
+                if self.spline.throw == 1 and np.abs(self.pcmd[4] - self.actpos[4]) < 0.15:
                     self.spline = Spline(t, self.pcmd, self.vcmd, Segment(self.waiting, [0, 0, 0, 0, 0], self.traj_time, 0), 0)
                     self.segments = []
                 else:

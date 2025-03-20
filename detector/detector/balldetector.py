@@ -38,7 +38,7 @@ class DetectorNode(Node):
     yellow = (255, 255,   0)
     white  = (255, 255, 255)
     
-    diameter = 0.135
+    diameter = 0.145
 
     # Initialization.
     def __init__(self, name):
@@ -119,8 +119,8 @@ class DetectorNode(Node):
                 uvMarkers[markerIds[i],:] = np.mean(markerCorners[i], axis=1)
 
             # Calculate the matching World coordinates of the 4 Aruco markers.
-            DX = 0.2325
-            DY = 0.5
+            DX = 0.2375
+            DY = 0.52
             xyMarkers = np.float32([[x0+dx, y0+dy] for (dx, dy) in
                                    [(-DX, DY), (DX, DY), (-DX, -DY), (DX, -DY)]])
 
@@ -192,8 +192,8 @@ class DetectorNode(Node):
         uc = W//2
         vc = H//2
         
-        x0 = -0.0315
-        y0 = 0.62
+        x0 = -0.0275
+        y0 = 0.625
 
         # Help to determine the HSV range...
         if True:
